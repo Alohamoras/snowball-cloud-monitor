@@ -1,0 +1,216 @@
+# Simple CloudWatch Alarm Setup Instructions
+
+## Step 1: Simplified Script (Just Send Metrics)
+
+Your original script is perfect - just keep it simple:
+
+```bash
+#!/bin/bash
+# snowball-monitor-simple.sh
+
+SNOWBALL_IP="10.42.0.53"
+TIMEOUT=5
+
+echo "[$(date)] Checking Snowball at $SNOWBALL_IP..."
+
+if nc -z -w$TIMEOUT $SNOWBALL_IP 8443; then
+    echo "[$(date)] ✅ Snowball is reachable"
+    # Send success metric
+    aws cloudwatch put-metric-data \
+        --namespace "Snowball/Simple" \
+        --metric-data MetricName=DeviceStatus,Value=1,Unit=Count,Dimensions=Name=DeviceID,Value=sb-001
+else
+    echo "[$(date)] ❌ Snowball is UNREACHABLE"
+    # Send failure metric  
+    aws cloudwatch put-metric-data \
+        --namespace "Snowball/Simple" \
+        --metric-data MetricName=DeviceStatus,Value=0,Unit=Count,Dimensions=Name=DeviceID,Value=sb-001
+fi
+
+echo "[$(date)] Metric sent to CloudWatch"
+```
+
+## Step 2: Create CloudWatch Alarm
+
+### Option A: AWS CLI
+```bash
+# Create alarm that triggers when device is offline
+aws cloudwatch put-metric-alarm \
+    --alarm-name "Snowball-Device-Offline" \
+    --alarm-description "Alert when Snowball device goes offline" \
+    --metric-name DeviceStatus \
+    --namespace Snowball/Simple \
+    --statistic Maximum \
+    --period 300 \
+    --evaluation-periods 1 \
+    --threshold 0.5 \
+    --comparison-operator LessThanThreshold \
+    --dimensions Name=DeviceID,Value=sb-001 \
+    --alarm-actions arn:aws:sns:us-east-1:151470012443:snow-updates \
+    --ok-actions arn:aws:sns:us-east-1:151470012443:snow-updates \
+    --treat-missing-data breaching
+```
+
+### Option B: AWS Console (Easier)
+1. Go to CloudWatch → Alarms → Create Alarm
+2. Select metric: `Snowball/Simple` → `DeviceStatus`
+3. Configure:
+   - **Statistic**: Maximum
+   - **Period**: 5 minutes
+   - **Threshold**: Less than 0.5
+   - **Evaluation periods**: 1 out of 1
+   - **Treat missing data**: As breaching threshold
+4. Add SNS topic: `arn:aws:sns:us-east-1:151470012443:snow-updates`
+5. Enable notifications for both ALARM and OK states
+
+## Step 3: CloudWatch Alarm Configuration Explained
+
+### Key Settings:
+- **Period**: 5 minutes (matches your cron frequency)
+- **Evaluation periods**: 1 (alert immediately on first failure)
+- **Threshold**: Less than 0.5 (so 0 = offline, 1 = online)
+- **Treat missing data**: As breaching (if script fails to run, treat as offline)
+- **Statistic**: Maximum (in case multiple data points in period)
+
+### What Happens:
+1. **Script runs every 5 minutes** → Sends 1 (online) or 0 (offline)
+2. **Alarm evaluates every 5 minutes** → Checks if latest value < 0.5
+3. **State changes trigger notifications**:
+   - ALARM state (offline) → Sends alert
+   - OK state (back online) → Sends recovery notification
+   - No repeat alerts while in same state
+
+## Step 4: Advanced Alarm Options
+
+### For More Tolerance (Reduce False Alarms):
+```bash
+# Require 2 consecutive failures before alerting
+aws cloudwatch put-metric-alarm \
+    --alarm-name "Snowball-Device-Offline-Conservative" \
+    --evaluation-periods 2 \
+    --datapoints-to-alarm 2 \
+    # ... other settings same
+```
+
+### For Faster Detection:
+```bash
+# Alert on first failure, but require 2 successes to clear
+aws cloudwatch put-metric-alarm \
+    --alarm-name "Snowball-Device-Offline-Sensitive" \
+    --evaluation-periods 2 \
+    --datapoints-to-alarm 1 \
+    # ... other settings same
+```
+
+## Step 5: Custom Alert Messages
+
+### Customize SNS Messages:
+You can create Lambda function to customize alert messages:
+
+```python
+# lambda_function.py - SNS message formatter
+import json
+import boto3
+from datetime import datetime
+
+def lambda_handler(event, context):
+    # Parse CloudWatch alarm
+    message = json.loads(event['Records'][0]['Sns']['Message'])
+    
+    alarm_name = message['AlarmName']
+    new_state = message['NewStateValue']
+    reason = message['NewStateReason']
+    timestamp = message['StateChangeTime']
+    
+    # Create custom message
+    if new_state == 'ALARM':
+        custom_message = f"🚨 SNOWBALL OFFLINE: Device unreachable as of {timestamp}"
+    elif new_state == 'OK':
+        custom_message = f"✅ SNOWBALL RECOVERED: Device is back online as of {timestamp}"
+    else:
+        custom_message = f"⚠️ SNOWBALL STATUS: {new_state} - {reason}"
+    
+    # Send to your notification system
+    sns = boto3.client('sns')
+    sns.publish(
+        TopicArn='arn:aws:sns:us-east-1:151470012443:snow-updates',
+        Message=custom_message,
+        Subject=f'Snowball Alert: {new_state}'
+    )
+    
+    return {'statusCode': 200}
+```
+
+## Benefits of CloudWatch Approach
+
+### ✅ Much Simpler Code:
+- **Original approach**: ~400 lines of bash with state management
+- **CloudWatch approach**: ~15 lines of bash
+
+### ✅ Built-in Features:
+- State change detection (no duplicate alerts)
+- Missing data handling
+- Automatic recovery notifications
+- Historical alarm state tracking
+- Integration with AWS ecosystem
+
+### ✅ More Reliable:
+- AWS manages the alerting logic
+- No local state files to corrupt
+- Survives server reboots/failures
+- Professional-grade alerting system
+
+### ✅ Better Observability:
+- Visual alarm state in CloudWatch console
+- Alarm history and annotations
+- Integration with CloudWatch dashboards
+- Metric-based troubleshooting
+
+## Cost Comparison
+
+### CloudWatch Alarm Costs:
+- **Alarm**: $0.10/month per alarm
+- **Metrics**: $0.30/month per metric (first 10,000 free)
+- **Total**: ~$0.40/month
+
+### vs. Complex Bash Script:
+- More code to maintain
+- Potential bugs in state logic
+- Local file corruption risks
+- **Same compute costs**
+
+## Quick Setup Commands
+
+```bash
+# 1. Replace your script with the simple version
+sudo tee /opt/snowball-monitor/snowball-monitor.sh << 'EOF'
+#!/bin/bash
+SNOWBALL_IP="10.42.0.53"
+echo "[$(date)] Checking $SNOWBALL_IP..."
+if nc -z -w5 $SNOWBALL_IP 8443; then
+    echo "[$(date)] ✅ Online"
+    aws cloudwatch put-metric-data --namespace "Snowball/Simple" --metric-data MetricName=DeviceStatus,Value=1,Unit=Count
+else
+    echo "[$(date)] ❌ Offline"  
+    aws cloudwatch put-metric-data --namespace "Snowball/Simple" --metric-data MetricName=DeviceStatus,Value=0,Unit=Count
+fi
+EOF
+
+# 2. Create the CloudWatch alarm
+aws cloudwatch put-metric-alarm \
+    --alarm-name "Snowball-Offline-Alert" \
+    --alarm-description "Snowball device offline detection" \
+    --metric-name DeviceStatus \
+    --namespace Snowball/Simple \
+    --statistic Maximum \
+    --period 300 \
+    --evaluation-periods 1 \
+    --threshold 0.5 \
+    --comparison-operator LessThanThreshold \
+    --alarm-actions arn:aws:sns:us-east-1:151470012443:snow-updates \
+    --ok-actions arn:aws:sns:us-east-1:151470012443:snow-updates \
+    --treat-missing-data breaching
+
+# 3. Test it
+sudo /opt/snowball-monitor/snowball-monitor.sh
+```
