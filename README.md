@@ -132,6 +132,11 @@ cat > /etc/logrotate.d/snowball-monitor << 'EOF'
 }
 EOF
 
+# Install Cron (This needs to be tested)
+sudo yum install -y cronie cronie-anacron
+sudo systemctl enable crond
+sudo systemctl start crond
+
 # Configure timezone (optional)
 timedatectl set-timezone America/New_York
 ```
