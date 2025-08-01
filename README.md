@@ -1,4 +1,46 @@
-# EC2 Deployment Guide for Snowball Monitor
+# AWS Snowball Device Monitor
+
+A lightweight, automated monitoring solution for AWS Snowball devices that provides real-time connectivity monitoring, alerting, and health tracking.
+
+## What This Does
+
+This project monitors the health and connectivity of AWS Snowball devices by periodically testing network connectivity and sending status updates to AWS CloudWatch. When a Snowball device becomes unreachable, the system automatically sends alerts via SNS, helping you quickly identify and respond to connectivity issues.
+
+## How It Works
+
+**Core Monitoring Process:**
+1. **Connectivity Testing** - A bash script runs at regular intervals (every 1-5 minutes) to test network connectivity to your Snowball device using netcat
+2. **Metrics Collection** - Results are sent to AWS CloudWatch as custom metrics (1 = online, 0 = offline)
+3. **Intelligent Alerting** - CloudWatch alarms detect state changes and trigger SNS notifications only when status actually changes
+4. **Health Monitoring** - Built-in health checks ensure the monitoring system itself is working properly
+
+**Key Features:**
+- ✅ **Zero false positives** - Only alerts on actual state changes, not transient network blips
+- ✅ **Self-monitoring** - Includes health checks to ensure the monitor itself is running
+- ✅ **Cost-effective** - Runs on a t3.nano instance (~$5/month total cost)
+- ✅ **Production-ready** - Includes logging, error handling, and maintenance scripts
+- ✅ **AWS-native** - Uses CloudWatch alarms for sophisticated alerting logic
+
+## Use Cases
+
+- **Data Migration Projects** - Monitor Snowball devices during large data transfers
+- **Remote Locations** - Get instant alerts when devices at remote sites go offline
+- **Compliance Requirements** - Maintain audit logs of device availability
+- **Proactive Operations** - Detect connectivity issues before they impact your workflow
+
+## Architecture
+
+```
+Snowball Device (10.42.0.53) ← [Network Test] ← EC2 Instance
+                                                      ↓
+CloudWatch Metrics ← [Status: 1=Online, 0=Offline] ←
+        ↓
+CloudWatch Alarms → SNS Topic → Email/SMS/Slack Alerts
+```
+
+The system is designed to be simple, reliable, and maintainable while providing enterprise-grade monitoring capabilities.
+
+# Deployment Guide for Snowball Monitor
 
 ## Step 1: Create IAM Role for EC2 Instance
 
