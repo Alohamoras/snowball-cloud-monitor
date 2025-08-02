@@ -1,6 +1,6 @@
 # AWS Snowball Device Monitor
 
-A lightweight, automated monitoring solution for AWS Snowball devices that provides real-time connectivity monitoring, alerting, and health tracking.
+A lightweight, automated monitoring solution for AWS Snowball devices that provides real-time connectivity monitoring, alerting, and health tracking (really a few bash scripts + cron).
 
 ## What This Does
 
@@ -15,14 +15,12 @@ This project monitors the health and connectivity of AWS Snowball devices by per
 4. **Health Monitoring** - Built-in health checks ensure the monitoring system itself is working properly
 
 **Key Features:**
-- ✅ **Zero false positives** - Only alerts on actual state changes, not transient network blips
 - ✅ **Self-monitoring** - Includes health checks to ensure the monitor itself is running
 - ✅ **Cost-effective** - Runs on a t3.nano instance (~$5/month total cost)
 - ✅ **Production-ready** - Includes logging, error handling, and maintenance scripts
 - ✅ **AWS-native** - Uses CloudWatch alarms for sophisticated alerting logic
 
 ## Use Cases
-
 - **Data Migration Projects** - Monitor Snowball devices during large data transfers
 - **Remote Locations** - Get instant alerts when devices at remote sites go offline
 - **Compliance Requirements** - Maintain audit logs of device availability
