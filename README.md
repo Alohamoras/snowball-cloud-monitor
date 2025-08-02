@@ -477,4 +477,24 @@ aws cloudwatch put-metric-data --namespace "Test" --metric-data MetricName=Test,
 less /opt/snowball-monitor/logs/monitor-$(date +%Y%m%d).log
 ```
 
-This setup gives you a robust, monitored, and maintainable solution for running your Snowball monitoring script!
+🗺️ Roadmap
+
+🎯 Planned Features
+Multi-Device Support
+- Monitor multiple Snowball devices from a single instance
+- Per-device configuration and alerting
+
+Web or Terminal Dashboard
+Real-time status overview of all monitored devices
+- Configuration management through the UI
+- Historical uptime charts and trends
+- Device health at a glance
+
+Enhanced Alerting
+- Slack/Teams integration for notifications
+- Configurable alert thresholds per device
+- Maintenance window support
+
+Deployment Options
+- Docker container support
+- Terraform module for easy AWS deployment
